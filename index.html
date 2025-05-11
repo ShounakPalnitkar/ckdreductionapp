@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Comprehensive CKD Management System</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root {
+      --stage1: #4CAF50;
+      --stage2: #FFEB3B;
+      --stage3: #FF9800;
+      --stage4: #F44336;
+      --stage5: #B71C1C;
+      --background: #f8f9fa;
+      --primary: #2196F3;
+    }
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      margin: 2rem;
+      background: var(--background);
+    }
+    .brochure-container {
+      max-width: 1200px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 20px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+      padding: 3rem;
+    }
+    .header {
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+    .stage-tracker {
+      height: 30px;
+      background: linear-gradient(90deg, 
+          var(--stage1) 20%,
+          var(--stage2) 20% 40%,
+          var(--stage3) 40% 60%,
+          var(--stage4) 60% 80%,
+          var(--stage5) 80% 100%);
+      border-radius: 15px;
+      margin: 2rem 0;
+      position: relative;
+    }
+    .progress-marker {
+      position: absolute;
+      height: 40px;
+      width: 4px;
+      background: #212121;
+      top: -5px;
+      transition: left 0.5s ease;
+    }
+    .input-section {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1.5rem;
+      margin: 2rem 0;
+    }
+    input {
+      padding: 12px;
+      border: 2px solid #e0e0e0;
+      border-radius: 8px;
+      font-size: 1rem;
+    }
+    button {
+      background: var(--primary);
+      color: white;
+      padding: 1rem 2rem;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 1.1rem;
+      transition: transform 0.3s ease;
+    }
+    button:hover {
+      transform: translateY(-2px);
+    }
+    .chart-container {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 2rem;
+      margin-top: 2rem;
+    }
+    .info-section {
+      background: #e3f2fd;
+      padding: 1.5rem;
+      border-radius: 15px;
+      margin: 2rem 0;
+    }
+    .emergency-alert {
+      background: #ffebee;
+      border-left: 5px solid #c62828;
+      padding: 1rem;
+      margin: 1rem 0;
+      display: none;
+    }
+    .planner-section {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 1.5rem;
+      margin: 2rem 0;
+    }
+    .dashboard-card {
+      background: white;
+      padding: 1.5rem;
+      border-radius: 15px;
+      box-shadow: 0 3px 6px rgba(0,0,0,0.1);
+    }
+  </style>
+</head>
+<body>
+  <div class="brochure-container">
+    <div class="header">
+      <h1>Chronic Kidney Disease Progress Detector</h1>
+      <p>Advanced Renal Function Monitoring System</p>
+    </div>
+
+    <div class="info-section">
+      <h2>Understanding GFR (Glomerular Filtration Rate)</h2>
+      <ul>
+        <li>Stage 1 (Normal): ≥90 mL/min/1.73m²</li>
+        <li>Stage 2 (Mild): 60-89 mL/min/1.73m²</li>
+        <li>Stage 3 (Moderate): 30-59 mL/min/1.73m²</li>
+        <li>Stage 4 (Severe): 15-29 mL/min/1.73m²</li>
+        <li>Stage 5 (Kidney Failure): &lt;15 mL/min/1.73m²</li>
+      </ul>
+    </div>
+
+    <div class="stage-tracker">
+      <div class="progress-marker" id="progressMarker"></div>
+    </div>
+
+    <div class="emergency-alert" id="emergencyAlert">
+      <h3>⚠️ Emergency Alert</h3>
+      <p>Immediate medical attention required! Contact your nephrologist immediately.</p>
+      <button onclick="document.getElementById('emergencyAlert').style.display = 'none'">Dismiss</button>
+    </div>
+
+    <div class="input-section">
+      <input type="number" id="currentGFR" placeholder="Current GFR">
+      <input type="number" id="prevGFR1" placeholder="3 Months Ago">
+      <input type="number" id="prevGFR2" placeholder="6 Months Ago">
+      <button onclick="analyzeProgression()">Analyze Progression</button>
+    </div>
+
+    <div class="dashboard-card" id="progressDashboard">
+      <h2>Progress Dashboard</h2>
+      <div id="dashboardContent"></div>
+    </div>
+
+    <div class="planner-section">
+      <div class="dashboard-card">
+        <h3>Dietary Recommendations</h3>
+        <ul id="dietAdvice"></ul>
+      </div>
+      <div class="dashboard-card">
+        <h3>Lifestyle Suggestions</h3>
+        <ul id="lifestyleAdvice"></ul>
+      </div>
+    </div>
+
+    <div class="chart-container">
+      <canvas id="trendChart"></canvas>
+      <canvas id="stageChart"></canvas>
+    </div>
+  </div>
+
+  <script>
+    let trendChart, stageChart;
+    let appData = {
+      gfrHistory: [],
+      currentStage: '',
+      trends: []
+    };
+
+    window.addEventListener('load', () => {
+      const saved = localStorage.getItem('ckdAppData');
+      if (saved) {
+        appData = JSON.parse(saved);
+        updateAllComponents();
+      }
+    });
+
+    function analyzeProgression() {
+      const currentGFR = parseFloat(document.getElementById('currentGFR').value);
+      const prevGFR1 = parseFloat(document.getElementById('prevGFR1').value);
+      const prevGFR2 = parseFloat(document.getElementById('prevGFR2').value);
+
+      if (isNaN(currentGFR)) {
+        alert('Please enter current GFR value');
+        return;
+      }
+
+      const gfrValues = [currentGFR, prevGFR1, prevGFR2].filter(v => !isNaN(v));
+      appData.gfrHistory = gfrValues.reverse();
+      appData.currentStage = getStage(currentGFR);
+      appData.trends = calculateTrends(appData.gfrHistory);
+
+      updateProgressMarker(currentGFR);
+      updateCharts(appData.gfrHistory);
+      updateEmergencyAlert(currentGFR);
+      updatePlanner();
+      updateDashboard();
+      saveData();
+    }
+
+    function getStage(gfr) {
+      if (gfr >= 90) return 'Stage 1';
+      if (gfr >= 60) return 'Stage 2';
+      if (gfr >= 30) return 'Stage 3';
+      if (gfr >= 15) return 'Stage 4';
+      return 'Stage 5';
+    }
+
+    function calculateTrends(values) {
+      const trends = [];
+      for (let i = 1; i < values.length; i++) {
+        trends.push(values[i] - values[i - 1]);
+      }
+      return trends;
+    }
+
+    function updateProgressMarker(gfr) {
+      const marker = document.getElementById('progressMarker');
+      const positions = {
+        'Stage 1': '10%',
+        'Stage 2': '30%',
+        'Stage 3': '50%',
+        'Stage 4': '70%',
+        'Stage 5': '90%'
+      };
+      marker.style.left = positions[getStage(gfr)];
+    }
+
+    function updateEmergencyAlert(gfr) {
+      document.getElementById('emergencyAlert').style.display = gfr < 15 ? 'block' : 'none';
+    }
+
+    function updatePlanner() {
+      const dietAdviceMap = {
+        'Stage 1': ['Limit sodium to 2g/day', 'Maintain protein intake'],
+        'Stage 2': ['Reduce phosphorus', 'Monitor potassium'],
+        'Stage 3': ['Low-protein diet', 'Avoid processed foods'],
+        'Stage 4': ['Fluid restriction', 'Low-potassium diet'],
+        'Stage 5': ['Dialysis diet', 'Strict fluid control']
+      };
+      const lifestyleAdviceMap = {
+        'Stage 1': ['Annual checkups', 'Manage blood pressure'],
+        'Stage 2': ['Regular exercise', 'Avoid smoking'],
+        'Stage 3': ['Medication adherence', 'Monitor labs'],
+        'Stage 4': ['Specialist care', 'Prepare for dialysis'],
+        'Stage 5': ['Dialysis routine', 'Transplant consultation']
+      };
+
+      const diet = dietAdviceMap[appData.currentStage] || [];
+      const lifestyle = lifestyleAdviceMap[appData.currentStage] || [];
+
+      document.getElementById('dietAdvice').innerHTML = diet.map(item => `<li>${item}</li>`).join('');
+      document.getElementById('lifestyleAdvice').innerHTML = lifestyle.map(item => `<li>${item}</li>`).join('');
+    }
+
+    function updateDashboard() {
+      const dashboard = document.getElementById('dashboardContent');
+      dashboard.innerHTML = `
+        <p><strong>Current Stage:</strong> ${appData.currentStage}</p>
+        <p><strong>GFR History:</strong> ${appData.gfrHistory.join(', ')}</p>
+        <p><strong>Trend:</strong> ${appData.trends.map(t => t.toFixed(2)).join(', ')}</p>
+      `;
+    }
+
+    function updateCharts(values) {
+      const labels = ['6 Months Ago', '3 Months Ago', 'Now'].slice(-values.length);
+      const ctx1 = document.getElementById('trendChart').getContext('2d');
+      const ctx2 = document.getElementById('stageChart').getContext('2d');
+
+      if (trendChart) trendChart.destroy();
+      if (stageChart) stageChart.destroy();
+
+      trendChart = new Chart(ctx1, {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [{
+            label: 'GFR Trend',
+            data: values,
+            borderColor: '#2196F3',
+            fill: false,
+            tension: 0.3
+          }]
+        }
+      });
+
+      const stageColors = {
+        'Stage 1': '#4CAF50',
+        'Stage 2': '#FFEB3B',
+        'Stage 3': '#FF9800',
+        'Stage 4': '#F44336',
+        'Stage 5': '#B71C1C'
+      };
+
+      stageChart = new Chart(ctx2, {
+        type: 'doughnut',
+        data: {
+          labels: ['Your Stage', 'Remaining'],
+          datasets: [{
+            data: [1, 4],
+            backgroundColor: [stageColors[appData.currentStage], '#e0e0e0']
+          }]
+        },
+        options: {
+          cutout: '70%',
+          plugins: {
+            legend: { display: false },
+            tooltip: { enabled: false }
+          }
+        }
+      });
+    }
+
+    function saveData() {
+      localStorage.setItem('ckdAppData', JSON.stringify(appData));
+    }
+
+    function updateAllComponents() {
+      if (appData.gfrHistory.length) {
+        updateProgressMarker(appData.gfrHistory.at(-1));
+        updateCharts(appData.gfrHistory);
+        updateEmergencyAlert(appData.gfrHistory.at(-1));
+        updatePlanner();
+        updateDashboard();
+      }
+    }
+  </script>
+</body>
+</html>
